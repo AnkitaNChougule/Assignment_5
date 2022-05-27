@@ -1,151 +1,181 @@
 const express = require("express")
-const app = express()
+const app=express()
 
-//Imported connection module from config.js
-const conn = require("./config.js")
+const fs = require("fs");
+const dotenv = require("dotenv");
+dotenv.config();
 
 //Importing modules from validation.js
 const {validateEmail, validateName, validatePassword, validatePhone,} 
        = require("./validation.js");
 
-port = process.env.PORT || 3000;
-host = "localhost"
+const port = process.env.PORT || 3000;
+const host = "localhost"
 
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
 
+  
+var addUserData = {
+   Users: [],
+};
 
-//=====Database connection===========
-conn.connect((err)=>{
-    if(err) throw err
-    console.log("Database Connected Successfully")
-})
+//=================For Login User======================================
 
-app.get('/api/user',(req,res)=>{
-    res.send('Welcome to Database Integration')
-})
+app.post("/api/user/login", [validateEmail], (req, res) => {
+  var loginDetail = req.body;
+  try {
+    fs.readFile("users.json", "utf-8", (err, data) => {
+      if (err) throw err;
+      else {
+        
+        const readloginData = JSON.parse(data);
+        var flag = false;
 
-//========================For Login========================
-app.post('/api/user/login',[validateEmail,validatePassword],(req,res)=>{
-    var loginDetails = req.body
-    var flag = false
- try{
-    conn.query("select * from Users",(err,result)=>{
-        if(err) throw err;
-        result.forEach((row)=>{
-            if(row.email === loginDetails.email && 
-               row.password == loginDetails.password)
-            {
-                res.send("User Login Successfully");
-                flag = true;
-                return
-            }
-        })//end of foreach loop
+        for (var key in readloginData.Users) 
+        {
+          var login = readloginData.Users[key];
+          if (login.email === loginDetail.email &&
+            login.password === loginDetail.password) 
+           {
+             res.send("Login Successfully.!!!");
+             flag = true;
+             break;
+           }
+        }//end of for loop
 
-        if(!flag){
-            res.status(404);
-            res.send("User Not Found")
-        }
-    })//end of query
+        if (!flag) 
+         {
+          res.status(404);
+          res.send("User Not Found For Login\n");
+         }
+      }
+    });//end of readfile
 
-  }catch(error){
+  } catch (error) {
     res.status(400);
     res.send("Something went wrong...");
   }
-})//end of login
+});//end of login user
 
-//====================For Signup=======================================
-app.post("/api/user/signup",
+//=================For Register User======================================
+  app.post(
+    "/api/user/signup",
     [validateName, validatePhone, validateEmail, validatePassword],
-    (req,res)=>{
-    const reg = req.body;
-    var flag = false;
-  try{
-    conn.query("select * from Users",(err,result)=>{
-        if(err) throw err;
-        result.forEach((row)=>{
-            if(row.email === reg.email && 
-               row.password == reg.password)
-            {
-                res.send("User has already Registered");
-                flag = true;
-                return 
-            }
-        })//end of foreach loop
-        if(!flag){
-            conn.query("Insert into Users values(?,?,?,?,?)",
-            [reg.id,reg.name,reg.email,reg.password,reg.phone],(err,row)=>{
-                if(err) throw err;
-
-                res.send("Record inserted Successfully");
-            })
-        }//end of insert query
-
-    })//end of select query
-
-   }catch(error){
-        res.status(400);
-     res.send("Something went wrong...");
-    }
-})//end of signup
-
-//===============For Update================================
-
-app.patch("/api/user/:id",
-          [validateName, validatePhone, validateEmail, validatePassword],
-          (req,res)=>{
-    var data = req.body
-    var api_id = req.params.id;
-  try{
-    conn.query("update Users set id = ? ,name = ?,password=?,phone=? where id = ?",
-    [data.id,data.name,data.password,data.phone,api_id],(err,result)=>{
-        if(err){
-            res.send("Error while updating data")
-            return
-        }
-        res.send("User Updated Successfully")
-    })//end of update query
+    (req, res) => {
+      const regDetails = req.body;
+      try {
+        fs.readFile("users.json", "utf-8", (err, data) => {
+          if (err) 
+          {
+            console.log(err);
+          } 
+          else {
+            addUserData = JSON.parse(data);
+            addUserData.Users.push(regDetails);
+            saveRegData = JSON.stringify(addUserData, null ,2);
   
-   }catch(error){
-    res.status(400);
-    res.send("Something went wrong...");
-   }
+            fs.writeFile("users.json", saveRegData, "utf-8", function (err) {
+              if (err) throw err;
+              res.send("Registered Successfully!!!");
+            });//end of writefile
+          }
+        });//end of readfile
+      } catch (error) {
+        res.status(400);
+        res.send("Something went wrong...");
+      }
+    });//end of register or signup
+  
+//=================For Update User======================================
+  app.patch(
+    "/api/user/:email",
+    [validateName, validatePhone, validateEmail],
+    (req, res) => {
+      var api_email = req.params.email;
+      try {
+        updateDetail = req.body;
+        fs.readFile("users.json", "utf-8", (err, data) => {
+          if (err) {
+            res.send(err);
+          } 
+          else {
+            var flag = false;
+            var readUpdate = JSON.parse(data);
+            var flag = false;
+            for (var key in readUpdate.Users) {
+              if (readUpdate.Users[key]["email"] === api_email) 
+              {
+                readUpdate.Users[key]["name"] = updateDetail["name"];
+                readUpdate.Users[key]["phone"] = updateDetail["phone"];
+                readUpdate.Users[key]["email"] = updateDetail["email"];
 
-})//end of update
-
-//==================For Delete ====================
-
-app.delete("/api/user/:id",(req,res)=>{
-    var api_id = req.params.id;
-    var flag = false;
-  try{
-    conn.query("select * from Users",(err,result)=>{
-        if(err) throw err;
-        result.forEach((row)=>{
-            if(row.id  == api_id)
+                var saveUpdatedData = JSON.stringify(readUpdate,null,2);
+                fs.writeFile("users.json", saveUpdatedData, "utf-8", function (err) {
+                  if (err) throw err;
+                  res.send("User Updated successfully!!!");
+                });//end of writefile
+                
+                flag = true;
+                break;
+              }
+            }//end of for loop
+            if (!flag) 
             {
-                conn.query("delete from Users where id = ?",[api_id],(err,data)=>{
-                    if(err) throw err;
-                    res.send("User Deleted Successfully");
-                })//end of delete query
-
-                flag = true
+              res.status(404);
+              res.send("User Not Found For Updating Data!");
             }
-        })//end of foreach loop
+  
+          }
+        });//end of readfile
+      } catch (error) {
+        res.status(400);
+        res.send("Something went wrong...!");
+      }
+    });//end of update
+  
+//=================For Delete User======================================
 
-        if(!flag){ 
-            res.send("User not found");      
+  app.delete("/api/user/:email", (req, res) => {
+    var api_delete_email = req.params.email;
+    try {
+      fs.readFile("users.json", "utf-8", (err, data) => {
+        if (err) {
+          res.send(err);
+        } else {
+          var deleteDetail = JSON.parse(data);
+          var flag = false;
+          for (var key in deleteDetail.Users) 
+          {
+            if (deleteDetail.Users[key]["email"] === api_delete_email) 
+            {
+              deleteDetail.Users.splice(key, 1);
+              var UpdatedData = JSON.stringify(deleteDetail, null ,2);
+  
+              fs.writeFile("users.json", UpdatedData, "utf-8", function (err) {
+                if (err) throw err;
+                res.send("User deleted successfully!!!");
+              });//end of writefile
+
+              flag = true;
+              break;
+            }
+          }//end of for loop 
+          if (!flag) {
+            res.status(404);
+            res.send("User Not Found For Delete!");
+          }
+          
         }
-    })//end of select query
- 
-   }catch(error){
-    res.status(400);
-    res.send("Something went wrong...");
-   }
-})//end of delete
-
-//============Server listening============================
-
-app.listen(port,host,()=>{
-   console.log(`Server Listening at ${host} with port ${port}`)
-})
+      });//end of readfile
+    } catch (error) {
+      res.status(400);
+      res.send("Something went wrong...!");
+    }
+    
+  });//end of  delete user
+  
+//=====server Listening=============================
+app.listen(port, host  , () =>{
+    console.log(`Server Listening with ${port} and ${host}\n` )
+ });
