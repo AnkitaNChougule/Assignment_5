@@ -1,5 +1,8 @@
 const express = require("express")
 const app = express()
+//For hashing password
+const bcrypt = require("bcrypt");
+const saltRounds =10
 
 //Imported connection module from config.js
 const conn = require("./config.js")
@@ -34,7 +37,8 @@ app.post('/api/user/login',[validateEmail,validatePassword],(req,res)=>{
         if(err) throw err;
         result.forEach((row)=>{
             if(row.email === loginDetails.email && 
-               row.password == loginDetails.password)
+                // row.password == loginDetails.password)
+                bcrypt.compareSync(loginDetails.password,row.password))
             {
                 res.send("User Login Successfully");
                 flag = true;
@@ -65,7 +69,8 @@ app.post("/api/user/signup",
         if(err) throw err;
         result.forEach((row)=>{
             if(row.email === reg.email && 
-               row.password == reg.password)
+            //    row.password == reg.password)
+                bcrypt.compareSync(reg.password,row.password))
             {
                 res.send("User has already Registered");
                 flag = true;
@@ -73,8 +78,12 @@ app.post("/api/user/signup",
             }
         })//end of foreach loop
         if(!flag){
+             //converting password into hash
+            let hash = bcrypt.hashSync(reg.password, saltRounds);
+
             conn.query("Insert into Users values(?,?,?,?,?)",
-            [reg.id,reg.name,reg.email,reg.password,reg.phone],(err,row)=>{
+            // [reg.id,reg.name,reg.email,reg.password,reg.phone],
+            [reg.id,reg.name,reg.email,hash,reg.phone],(err,row)=>{
                 if(err) throw err;
 
                 res.send("Record inserted Successfully");
@@ -97,8 +106,12 @@ app.patch("/api/user/:id",
     var data = req.body
     var api_id = req.params.id;
   try{
+      //converting password into hash
+    let hash = bcrypt.hashSync(data.password, saltRounds);
+    
     conn.query("update Users set id = ? ,name = ?,password=?,phone=? where id = ?",
-    [data.id,data.name,data.password,data.phone,api_id],(err,result)=>{
+    // [data.id,data.name,data.password,data.phone,api_id]
+    [data.id,data.name,hash,data.phone,api_id],(err,result)=>{
         if(err){
             res.send("Error while updating data")
             return
@@ -133,7 +146,7 @@ app.delete("/api/user/:id",(req,res)=>{
             }
         })//end of foreach loop
 
-        if(!flag){ 
+        if(!flag){
             res.send("User not found");      
         }
     })//end of select query
